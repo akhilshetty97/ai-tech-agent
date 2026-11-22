@@ -1,6 +1,12 @@
+import threading
+
 import httpx
 import trafilatura
 from pydantic import BaseModel, ConfigDict, Field
+
+# trafilatura parses HTML with lxml (C code), which can crash the process when several threads
+# parse at once. Downloads still run in parallel; only the parsing step goes one at a time.
+_PARSE_LOCK = threading.Lock()
 
 
 class ReadUrlArgs(BaseModel):
@@ -21,7 +27,8 @@ def read_url(url: str, max_chars: int = 8000) -> str:
     except Exception as e:
         return f"ERROR: could not fetch {url}: {e}"
 
-    text = trafilatura.extract(response.text)
+    with _PARSE_LOCK:
+        text = trafilatura.extract(response.text)
     if not text:
         return f"ERROR: no readable text at {url} (may need JavaScript). Try another source."
 
