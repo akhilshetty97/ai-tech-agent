@@ -1,6 +1,7 @@
 # ai-tech-agent
 
-<!-- architecture diagram -->
+<img width="4641" height="3739" alt="image" src="https://github.com/user-attachments/assets/5d2efbaf-a7dd-4dd9-8653-7621fd6f7175" />
+
 
 I wanted a way to keep up with AI agent and infra news without reading Hacker News and a dozen
 blogs every morning, and I wanted an excuse to build an agent from scratch. This does both.
@@ -35,26 +36,6 @@ Fetch, dedupe by canonical URL and content hash, store in
 SQLite, group articles about the same news into one story, then score each article with
 Gemini Decision 1 (category plus relevance, novelty and impact on a 1-5 rubric). The briefing
 takes the top 10 stories and marks them as covered so they don't show up again the next day.
-
-## Setup
-
-Needs Python 3.13 and [uv](https://docs.astral.sh/uv/).
-
-```bash
-uv sync
-```
-
-Create a `.env` in the project root:
-
-```
-GEMINI_API_KEY=...
-TAVILY_API_KEY=...
-TELEGRAM_BOT_TOKEN=...
-TELEGRAM_CHAT_ID=...
-```
-
-To get the chat ID, message your bot once and open
-`https://api.telegram.org/bot<TOKEN>/getUpdates`.
 
 ## Usage
 
@@ -93,10 +74,3 @@ pipeline/   fetch, store, stories, scoring, briefing, Telegram
 runs/       traces and eval results (gitignored)
 data/       SQLite database (gitignored)
 ```
-
-## Known issues
-
-- Faithfulness is around 0.84 on the eval set. Some claims come from the model's own knowledge
-  rather than the page it cites, mostly on long pages that get cut at 8,000 characters.
-- Vendor changelog posts ("X is now available on Y") still rank higher than they should.
-- Gemini's free tier allows 15 requests a minute, so a full eval run hits rate limits and waits.
