@@ -34,6 +34,8 @@ jobs:
 
       - name: Fetch, score, research and send the briefing
         env:
+          PYTHONFAULTHANDLER: "1"   # if C code crashes, print the Python stack instead of just "free(): invalid pointer"
+          PYTHONUNBUFFERED: "1"     # show progress lines as they happen in the log
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
