@@ -16,6 +16,7 @@ from dotenv import load_dotenv
 
 from agent.llm import MODEL
 from agent.loop import run_agent
+from evals.judge import judge_completeness, judge_faithfulness, load_pages
 
 EVALS_DIR = Path(__file__).parent
 RESULTS_DIR = EVALS_DIR.parent / "runs" / "evals"
@@ -68,10 +69,33 @@ def score(question: dict, result, events: list[dict], seconds: float) -> dict:
     }
 
 
+def judge(question: dict, result) -> dict:
+    """LLM-judge metrics. A judge failure is recorded, not fatal."""
+    try:
+        completeness = judge_completeness(result.report, question["key_facts"])
+        faithfulness = judge_faithfulness(result.report, load_pages(result.trace_path))
+    except Exception as e:
+        return {"judge_error": f"{type(e).__name__}: {e}"}
+    return {
+        "facts": f"{completeness['covered']}/{completeness['total']}",
+        "completeness": completeness["score"],
+        "faith": f"{faithfulness['supported']}/{faithfulness['total']}",
+        "faithfulness": faithfulness["score"],
+        "judge_details": {"facts": completeness["facts"], "claims": faithfulness["claims"]},
+    }
+
+
+def _avg(values: list) -> float | None:
+    values = [v for v in values if v is not None]
+    return sum(values) / len(values) if values else None
+
+
 def summarize(rows: list[dict]) -> dict:
     ok = [r for r in rows if "error" not in r]
     n = len(ok) or 1
     return {
+        "avg_completeness": _avg([r.get("completeness") for r in ok]),
+        "avg_faithfulness": _avg([r.get("faithfulness") for r in ok]),
         "questions": len(rows),
         "crashed": len(rows) - len(ok),
         "complete_rate": sum(r["complete"] for r in ok) / n,
@@ -91,7 +115,7 @@ def print_scorecard(rows: list[dict], summary: dict, previous: dict | None) -> N
     cols = [
         ("id", 26), ("complete", 8), ("steps", 5), ("searches", 8), ("repeat", 6),
         ("read", 4), ("failed", 6), ("rejected", 8), ("nudges", 6), ("src", 3),
-        ("in_tok", 7), ("secs", 5),
+        ("in_tok", 7), ("secs", 5), ("facts", 5), ("faith", 5),
     ]
     keys = {
         "repeat": "repeated_searches", "read": "pages_read", "failed": "failed_tool_calls",
@@ -106,15 +130,19 @@ def print_scorecard(rows: list[dict], summary: dict, previous: dict | None) -> N
             continue
         cells = []
         for name, w in cols:
-            v = r[keys.get(name, name)]
+            v = r.get(keys.get(name, name), "-")
             v = ("yes" if v else "no") if isinstance(v, bool) else v
             cells.append(str(v).ljust(w))
         print("  ".join(cells))
 
+    for r in rows:
+        if "judge_error" in r:
+            print(f"judge failed on {r['id']}: {r['judge_error'][:150]}")
+
     print("\nSummary" + ("  (change vs previous run)" if previous else ""))
     for key, value in summary.items():
         line = f"  {key:24} {value:.2f}" if isinstance(value, float) else f"  {key:24} {value}"
-        if previous and key in previous:
+        if previous and previous.get(key) is not None and value is not None:
             delta = value - previous[key]
             if delta:
                 line += f"   ({delta:+.2f})"
@@ -129,7 +157,9 @@ def latest_previous_summary() -> dict | None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--only", help="run a single question by id")
-    parser.add_argument("--max-steps", type=int, default=10)
+    parser.add_argument("--max-steps", type=int, default=15)
+    parser.add_argument("--no-judge", action="store_true", help="skip the Decision 1 judge")
+    parser.add_argument("--label", default="", help="what this run tests, e.g. 'prompt-v2'")
     args = parser.parse_args()
 
     load_dotenv()
@@ -144,7 +174,10 @@ def main() -> None:
         start = time.perf_counter()
         try:
             result = run_agent(q["question"], max_steps=args.max_steps)
-            rows.append(score(q, result, read_trace(result.trace_path), time.perf_counter() - start))
+            row = score(q, result, read_trace(result.trace_path), time.perf_counter() - start)
+            if not args.no_judge:
+                row.update(judge(q, result))
+            rows.append(row)
         except Exception as e:  # one crash shouldn't stop the whole eval run
             rows.append({"id": q["id"], "error": f"{type(e).__name__}: {e}"})
 
@@ -154,7 +187,7 @@ def main() -> None:
     if not args.only:  # only full runs become the baseline for the next comparison
         RESULTS_DIR.mkdir(parents=True, exist_ok=True)
         out = RESULTS_DIR / f"{datetime.now():%Y%m%d-%H%M%S}.json"
-        out.write_text(json.dumps({"model": MODEL, "summary": summary, "rows": rows}, indent=2))
+        out.write_text(json.dumps({"label": args.label, "model": MODEL, "summary": summary, "rows": rows}, indent=2))
         print(f"\nSaved: {out}")
 
 
