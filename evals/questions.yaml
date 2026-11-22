@@ -1,0 +1,143 @@
+# Eval questions for the research agent.
+#
+# Rules:
+#   - Don't edit a question once you've compared scores with it. Add a new one instead.
+#   - key_facts = what a good answer MUST include. Short and checkable.
+#   - expected_sources = domains a good answer should have read. Matching any one counts.
+
+- id: mcp-vs-function-calling
+  category: agents
+  type: explanation
+  verified: true
+  reviewed_by: claude
+  question: "How does MCP differ from plain function calling?"
+  key_facts:
+    - "Function calling is a model API feature: the app sends tool schemas, the model returns a structured call, the app runs it"
+    - "MCP is an open protocol with a client-server architecture: tools live in separate MCP servers"
+    - "MCP servers are reusable across any MCP-compatible client or model, instead of being coded into one app"
+    - "MCP servers can expose resources and prompts as well as tools"
+    - "MCP does not replace function calling: clients typically use function calling to let the model invoke MCP tools"
+  expected_sources:
+    - "modelcontextprotocol.io"
+
+- id: mcp-2026-07-28-spec
+  category: agents
+  type: factual
+  verified: true
+  reviewed_by: claude
+  # Asks about a named revision, not "the latest", so the answer doesn't change when a newer spec ships.
+  question: "What changed in the 2026-07-28 revision of the MCP specification?"
+  key_facts:
+    - "The revision makes MCP stateless"
+    - "The initialize/initialized handshake is removed"
+    - "The Mcp-Session-Id session header is removed"
+    - "Each request carries its protocol version and client capabilities itself, in _meta"
+    - "Any request can be handled by any server instance, so servers scale behind a plain load balancer"
+  expected_sources:
+    - "modelcontextprotocol.io"
+    - "blog.modelcontextprotocol.io"
+
+- id: agent-frameworks-state
+  category: agents
+  type: comparison
+  verified: true
+  reviewed_by: claude
+  question: "Compare LangGraph, OpenAI Agents SDK and Pydantic AI on how they manage state."
+  key_facts:
+    - "LangGraph: state is an explicit typed schema passed between graph nodes, with reducers controlling how updates merge"
+    - "LangGraph: checkpointers persist state per thread, enabling resume and human-in-the-loop interrupts"
+    - "OpenAI Agents SDK: sessions store conversation history across runs"
+    - "OpenAI Agents SDK: the run context holds app data and dependencies for your code and is never sent to the model"
+    - "Pydantic AI: conversation continuity comes from passing message_history explicitly into each run"
+    - "Pydantic AI: dependencies reach tools through RunContext.deps; pydantic-graph records state after each node"
+  expected_sources:
+    - "langchain-ai.github.io"
+    - "docs.langchain.com"
+    - "openai.github.io"
+    - "ai.pydantic.dev"
+    - "pydantic.dev"
+
+- id: a2a-vs-mcp
+  category: agents
+  type: explanation
+  verified: true
+  reviewed_by: claude
+  question: "What is the Agent2Agent (A2A) protocol and how does it relate to MCP?"
+  key_facts:
+    - "A2A is an open protocol for agents to communicate and delegate tasks to other agents"
+    - "Google introduced it in 2025 and donated it to the Linux Foundation"
+    - "Agents advertise their skills and endpoints in an Agent Card, a JSON document used for discovery"
+    - "A2A is complementary to MCP: MCP connects an agent to tools and data, A2A connects agents to each other"
+  expected_sources:
+    - "a2a-protocol.org"
+    - "github.com/a2aproject"
+    - "linuxfoundation.org"
+    - "developers.googleblog.com"
+
+- id: hybrid-search-rag
+  category: rag_infra
+  type: explanation
+  verified: true
+  reviewed_by: claude
+  question: "What is hybrid search in RAG, and why combine keyword and vector search?"
+  key_facts:
+    - "Hybrid search runs a keyword search (e.g. BM25) and a dense vector search and combines the results"
+    - "Keyword search catches exact terms, names, IDs and codes that embeddings can miss"
+    - "Vector search catches semantic matches with different wording"
+    - "Results are commonly merged with reciprocal rank fusion (RRF) or a weighted score"
+  expected_sources:
+    - "weaviate.io"
+    - "elastic.co"
+    - "qdrant.tech"
+    - "pinecone.io"
+
+- id: rerankers
+  category: rag_infra
+  type: explanation
+  verified: true
+  reviewed_by: claude
+  question: "What does a reranker do in a RAG pipeline, and what is the trade-off of using one?"
+  key_facts:
+    - "A reranker re-scores the candidates retrieved by a first-stage search before they go to the LLM"
+    - "Rerankers are usually cross-encoders: they read the query and document together, unlike bi-encoder embeddings"
+    - "Cross-encoders are more accurate but much slower, so they are applied only to the top-k candidates"
+  expected_sources:
+    - "sbert.net"
+    - "cohere.com"
+    - "pinecone.io"
+
+- id: prompt-caching-agents
+  category: rag_infra
+  type: explanation
+  verified: true
+  reviewed_by: claude
+  # Provider-specific details (minimums, TTLs, explicit vs automatic) change often, so this asks about the mechanism.
+  question: "How does prompt caching work, and how should an agent's prompts be structured to benefit from it?"
+  key_facts:
+    - "The provider reuses the processed prefix of a prompt, so repeated prefixes cost less and return faster"
+    - "Only an exact prefix match is reused: any change early in the prompt invalidates everything after it"
+    - "Stable content (tools, system prompt) should come first and changing content (new messages) last"
+    - "Cached input tokens are billed at a large discount compared with normal input tokens"
+    - "Caches expire after a time-to-live, so the benefit depends on how often the same prefix is reused"
+    - "Agents benefit strongly because every step resends the same tools, system prompt and earlier conversation"
+  expected_sources:
+    - "anthropic.com"
+    - "claude.com"
+    - "platform.openai.com"
+    - "ai.google.dev"
+
+- id: gemini-decision-1
+  category: rag_infra
+  type: factual
+  verified: true
+  reviewed_by: claude
+  question: "What is Google's Gemini Decision 1 model and what is it used for?"
+  key_facts:
+    - "It is a specialized model for the Decisions API that returns calibrated probabilities instead of generated text (zero output tokens)"
+    - "Supports yes/no, single-select choice and rubric rating questions"
+    - "One request can evaluate up to 1,000 questions over shared input of up to 262,144 tokens"
+    - "Accepts text, images, video, audio and PDFs"
+    - "Intended for routing, policy checks, scoring candidates against a rubric, and classification"
+  expected_sources:
+    - "ai.google.dev"
+    - "blog.google"

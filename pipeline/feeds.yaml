@@ -1,0 +1,38 @@
+# RSS/Atom feeds for the discovery pipeline. Checked 2026-11-21: all return entries.
+# Add or remove freely; a feed that fails is skipped and reported, never fatal.
+# Not included (no working feed found): Anthropic, LlamaIndex, Pydantic, LangChain.
+
+lookback_days: 7        # RSS items older than this are ignored
+hn_top_stories: 100     # how many of Hacker News' top stories to consider
+
+ranking:
+  top_n: 10
+  weights: {relevance: 0.4, impact: 0.3, novelty: 0.3}   # should add up to 1
+  min_category_confidence: 0.5                         # less sure than this that it's on-topic: leave it out
+
+briefing:
+  investigate: 2          # how many top stories the research agent digs into (by impact)
+
+feeds:
+  # AI labs
+  - {name: OpenAI, url: "https://openai.com/news/rss.xml"}
+  - {name: Google DeepMind, url: "https://deepmind.google/blog/rss.xml"}
+  - {name: Google Developers, url: "https://developers.googleblog.com/rss/"}
+  - {name: Hugging Face, url: "https://huggingface.co/blog/feed.xml"}
+
+  # Agents and protocols
+  - {name: MCP Blog, url: "https://blog.modelcontextprotocol.io/index.xml"}
+  - {name: Vercel, url: "https://vercel.com/atom"}
+  - {name: Cloudflare AI, url: "https://blog.cloudflare.com/tag/ai/rss/"}
+
+  # RAG and AI infrastructure
+  - {name: Pinecone, url: "https://www.pinecone.io/blog/rss.xml"}
+  - {name: Weaviate, url: "https://weaviate.io/blog/rss.xml"}
+  - {name: Qdrant, url: "https://qdrant.tech/blog/index.xml"}
+  - {name: AWS Machine Learning, url: "https://aws.amazon.com/blogs/machine-learning/feed/"}
+
+  # Independent writers
+  - {name: Simon Willison, url: "https://simonwillison.net/atom/everything/"}
+  - {name: Latent Space, url: "https://www.latent.space/feed"}
+  - {name: Interconnects, url: "https://www.interconnects.ai/feed"}
+  - {name: Lilian Weng, url: "https://lilianweng.github.io/index.xml"}

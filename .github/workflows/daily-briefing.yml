@@ -1,0 +1,70 @@
+name: Daily briefing
+
+on:
+  schedule:
+    # 13:00 UTC = 5:00 Pacific (6:00 in summer) / 8:00 Eastern. GitHub may start it 10-30 min late.
+    - cron: "0 13 * * *"
+  workflow_dispatch: {}   # "Run workflow" button for manual runs
+
+concurrency:
+  group: daily-briefing
+  cancel-in-progress: false
+
+jobs:
+  briefing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      # Each run starts on a fresh machine. The database (seen articles, stories, what was
+      # already sent) is carried between runs in the Actions cache. Keys are immutable, so
+      # each run saves a new key and the next run restores the most recent one.
+      - name: Restore database
+        uses: actions/cache/restore@v4
+        with:
+          path: data/pipeline.db
+          key: pipeline-db-${{ github.run_id }}
+          restore-keys: pipeline-db-
+
+      - name: Fetch, score, research and send the briefing
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: uv run python -m pipeline.briefing --refresh --send
+
+      # Saved even if the briefing failed, so articles fetched this run aren't fetched again
+      - name: Save database
+        if: always() && hashFiles('data/pipeline.db') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: data/pipeline.db
+          key: pipeline-db-${{ github.run_id }}
+
+      - name: Keep research traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: traces-${{ github.run_id }}
+          path: runs/
+          retention-days: 14
+          if-no-files-found: ignore
+
+      # A missing briefing should never be silent
+      - name: Alert on failure
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d chat_id="${TELEGRAM_CHAT_ID}" \
+            --data-urlencode text="⚠️ Today's AI briefing failed. Logs: ${RUN_URL}" > /dev/null
